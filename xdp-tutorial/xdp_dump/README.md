@@ -25,10 +25,12 @@ sudo ./xdp_dump -iface <your NIC name>
 #### Building the network network configurations
 First we start by building the network space.
 Here we check the current network namespaces and veth pairs.
-![Alt text][https://dummyim.s3.amazonaws.com/im3.png] 
+
+
+![Alt text](https://dummyim.s3.amazonaws.com/im3.png) 
 
 We then build the proper networking configurations.
-![Alt text][https://dummyim.s3.amazonaws.com/img4.png] 
+![Alt text](https://dummyim.s3.amazonaws.com/img4.png) 
 
 The netns.sh code
 ```
@@ -58,17 +60,17 @@ fi
 ```
 After running the netns.sh we can see that a new network namespace has been created. And veth pairs were wired accordingly.
 
-![Alt text][https://dummyim.s3.amazonaws.com/img5.png] 
+![Alt text](https://dummyim.s3.amazonaws.com/img5.png) 
 
 #### Building the binary files
 We first build the binaries.
-![Alt text][https://dummyim.s3.amazonaws.com/img6.png] 
+![Alt text](https://dummyim.s3.amazonaws.com/img6.png)
 
 Then we attach the xdp_dump code to veth1 interface of node1 network namespace.
-![Alt text][https://dummyim.s3.amazonaws.com/img7.png] 
+![Alt text](https://dummyim.s3.amazonaws.com/img7.png) 
 
 Finally we open another terminal and ping the address of the xdp attached interface. We can see the source, destination ports and ips on the left terminal being stored in eBPF map and getting retrieved from go userspace code. 
-![Alt text][https://dummyim.s3.amazonaws.com/img8.png] 
+![Alt text](https://dummyim.s3.amazonaws.com/img8.png) 
 
 
 ### BPF Code
