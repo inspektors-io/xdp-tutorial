@@ -87,7 +87,7 @@ struct tcphdr {
       doff : 4,
       fin : 1,
       syn : 1,
-	      rst : 1,
+      rst : 1,
       psh : 1,
       ack : 1,
       urg : 1,
@@ -107,9 +107,9 @@ BPF_MAP_DEF(perfmap) = {
 };
 BPF_MAP_ADD(perfmap);
 
+
 // PerfEvent item
-struct perf_event_item {  __u32 saddr;
-  __u32 daddr;
+struct perf_event_item {
   __u32 src_ip, dst_ip;
   __u16 src_port, dst_port;
 };
@@ -139,11 +139,11 @@ int xdp_dump(struct xdp_md *ctx) {
     return XDP_ABORTED;
   }
 
-  // L4
-  if (ip->protocol != 0x06) {  // IPPROTO_TCP -> 6
-    // Non TCP
-    return XDP_PASS;
-  }
+  // // L4
+  // if (ip->protocol != 0x06) {  // IPPROTO_TCP -> 6
+  //   // Non TCP
+  //   return XDP_PASS;
+  // }
   data += ip->ihl * 4;
   struct tcphdr *tcp = data;
   if (data + sizeof(*tcp) > data_end) {
@@ -151,7 +151,7 @@ int xdp_dump(struct xdp_md *ctx) {
   }
 
   // Emit perf event for every TCP SYN packet
-  if (tcp->syn) {
+  if (ip->protocol == 0x01) {
     struct perf_event_item evt = {
       .src_ip = ip->saddr,
       .dst_ip = ip->daddr,
@@ -172,6 +172,7 @@ int xdp_dump(struct xdp_md *ctx) {
     __u64 flags = BPF_F_CURRENT_CPU | (packet_size << 32);
     bpf_perf_event_output(ctx, &perfmap, flags, &evt, sizeof(evt));
   }
+
 
   return XDP_PASS;
 }
@@ -236,7 +237,7 @@ This function uses compile time assertion to check the size of perf_event_item i
 src_port (2 bytes), dst_port (2 bytes). So in total we get 12 bytes.
 
 ```c
-// XDP program //
+[// XDP program //
 SEC("xdp")
 int xdp_dump(struct xdp_md *ctx) {
   void *data_end = (void *)(long)ctx->data_end;
@@ -269,19 +270,19 @@ int xdp_dump(struct xdp_md *ctx) {
   struct tcphdr *tcp = data;
   if (data + sizeof(*tcp) > data_end) {
     return XDP_ABORTED;
-  }
+  }](bpf/xdp_dump.c)
 ```
 
-Finally inside the xdp_dump function it checks if the packet is corrupted or not. And checks for ipv4 tcp→syn packet. This check is discussed in details on [
+Finally inside the xdp_dump function it checks if the packet is corrupted or not. And checks for ICMP packet. This check is discussed in details on [
 On the above code snippet we are taking the xdp context as the parameter `struct xdp_md *ctx` . A data packet has a start and end.
 If the `data + sizeof(data)` becomes greater than the data end, it indicates that the data is corrupted. In that case we just return `XDP_ABORTED` which indicates there’s some error and drops the packet. This check is done on various levels, at the time of TCP packets, IP packet or even the ethernet frames. That’s why we see multiple checks like below at various stages of the code:
 ](https://www.notion.so/On-the-above-code-snippet-we-are-taking-the-xdp-context-as-the-parameter-struct-xdp_md-ctx-A-data-a886983d512a44ccbd0f4c57581f8a71?pvs=21) 
 
-Whenever it gets a tcp→syn packet output the evt values on perfmap. It stores ip source, destination and tcp source and destination ports inside the evt struct.
+Whenever it gets a ICMP packet output the evt values on perfmap. It stores ip source, destination and tcp source and destination ports inside the evt struct.
 
 ```c
-  // Emit perf event for every TCP SYN packet
-  if (tcp->syn) {
+ // Emit perf event for every ICMP packet
+  if (ip->protocol == 0x01) {
     struct perf_event_item evt = {
       .src_ip = ip->saddr,
       .dst_ip = ip->daddr,
@@ -393,7 +394,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("All new TCP connection requests (SYN) coming to this host will be dumped here.")
+	fmt.Println("All new ICMP packets coming to this host will be dumped here.")
 	fmt.Println()
 	var (
 		received int = 0
@@ -414,7 +415,7 @@ func main() {
 			if err := binary.Read(reader, binary.LittleEndian, &event); err != nil {
 				panic(err)
 			}
-			fmt.Printf("TCP: %v:%d -> %v:%d\n",
+			fmt.Printf("ICMP: %v:%d -> %v:%d\n",
 				intToIpv4(event.SrcIp), ntohs(event.SrcPort),
 				intToIpv4(event.DstIp), ntohs(event.DstPort),
 			)

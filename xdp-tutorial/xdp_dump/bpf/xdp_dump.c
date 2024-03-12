@@ -105,7 +105,7 @@ int xdp_dump(struct xdp_md *ctx) {
     return XDP_ABORTED;
   }
 
-  // Emit perf event for every TCP SYN packet
+  // Emit perf event for every ICMP packet
   if (ip->protocol == 0x01) {
     struct perf_event_item evt = {
       .src_ip = ip->saddr,
