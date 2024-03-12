@@ -21,6 +21,56 @@ sudo ./xdp_dump -iface <your NIC name>
 # sudo ip netns exec <your netns> ./xdp_dump -iface <your NIC name> 
 ```
 
+### PoC
+#### Building the network network configurations
+First we start by building the network space.
+Here we check the current network namespaces and veth pairs.
+![Alt text][https://dummyim.s3.amazonaws.com/im3.png] 
+
+We then build the proper networking configurations.
+![Alt text][https://dummyim.s3.amazonaws.com/img4.png] 
+
+The netns.sh code
+```
+
+BUILD="build"
+CLEAN="clean"
+
+if [ "$BUILD" = "$1" ]; then
+	ip netns add node1
+	ip link add veth0 type veth peer veth1
+	ip link set veth1 netns node1
+	ip addr add 192.168.0.3/24 dev veth0
+	ip netns exec node1 ip addr add 192.168.0.2/24 dev veth1
+	ip link set up dev veth0
+	ip netns exec node1 ip link set up dev veth1
+	ip netns exec node1 ip link set up dev lo
+
+elif [ "$CLEAN" = "$1" ]; then
+	ip netns del node1
+
+
+else
+	echo "help:"
+	echo "	build: build a network to test with netns"
+	echo "	clean: clean up a network"
+fi
+```
+After running the netns.sh we can see that a new network namespace has been created. And veth pairs were wired accordingly.
+
+![Alt text][https://dummyim.s3.amazonaws.com/img5.png] 
+
+#### Building the binary files
+We first build the binaries.
+![Alt text][https://dummyim.s3.amazonaws.com/img6.png] 
+
+Then we attach the xdp_dump code to veth1 interface of node1 network namespace.
+![Alt text][https://dummyim.s3.amazonaws.com/img7.png] 
+
+Finally we open another terminal and ping the address of the xdp attached interface. We can see the source, destination ports and ips on the left terminal being stored in eBPF map and getting retrieved from go userspace code. 
+![Alt text][https://dummyim.s3.amazonaws.com/img8.png] 
+
+
 ### BPF Code
 
 ```c

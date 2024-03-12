@@ -2,9 +2,6 @@
 
 BUILD="build"
 CLEAN="clean"
-ATTACH="attach"
-DETACH="detach"
-READELF="readelf"
 
 if [ "$BUILD" = "$1" ]; then
 	ip netns add node1
@@ -19,14 +16,6 @@ if [ "$BUILD" = "$1" ]; then
 elif [ "$CLEAN" = "$1" ]; then
 	ip netns del node1
 
-elif [ "$ATTACH" = "$1" ]; then
-	ip netns exec node1 ip link set dev veth1 xdp obj xdpdump_bpfel.o sec xdp
-
-elif [ "$DETACH" = "$1" ]; then
-	ip link set dev eth0 xdp off
-
-elif [ "$READELF" = "$1" ]; then
-	readelf -S xdpdump_bpfeb.o
 
 else
 	echo "help:"

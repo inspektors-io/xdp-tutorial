@@ -70,7 +70,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("All new TCP connection requests (SYN) coming to this host will be dumped here.")
+	fmt.Println("All new IP packets coming to this host will be dumped here.")
 	fmt.Println()
 	var (
 		received int = 0
