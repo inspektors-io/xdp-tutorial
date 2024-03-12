@@ -106,7 +106,7 @@ int xdp_dump(struct xdp_md *ctx) {
   }
 
   // Emit perf event for every TCP SYN packet
-  if (ether->h_proto == 0x08U) {
+  if (ip->protocol == 0x01) {
     struct perf_event_item evt = {
       .src_ip = ip->saddr,
       .dst_ip = ip->daddr,
