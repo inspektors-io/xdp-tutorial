@@ -22,18 +22,21 @@ sudo ./xdp_dump -iface <your NIC name>
 ```
 
 ### PoC
-First we check the network interfaces informations.
+We first use SSH to connect to the remote server.
+We check the network interfaces informations on the server.
 
 ![Alt text](https://dummyim.s3.amazonaws.com/img10.png) 
 
 #### Building the binary files
+
 We first build the binaries.
+
 ![Alt text](https://dummyim.s3.amazonaws.com/img11.png)
 
-Then we attach the xdp_dump code to veth0 interface on the server.
+Then we attach the xdp_dump code to eth0 interface on the server.
 ![Alt text](https://dummyim.s3.amazonaws.com/img13.png) 
 
-Finally we open another terminal and ping the address of the xdp attached interface. We can see the source, destination ports and ips on the left terminal being stored in eBPF map and getting retrieved from go userspace code. Here we are tracing only the ICMP requests.
+Finally we open another terminal on our host and ping the address(95.217.22.143) of the xdp attached interface. We can see the source, destination ports and ips on the left terminal being stored in eBPF map and getting retrieved from go userspace code. Here we are tracing only the ICMP requests.
 ![Alt text](https://dummyim.s3.amazonaws.com/img12.png) 
 
 
