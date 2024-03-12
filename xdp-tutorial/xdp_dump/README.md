@@ -36,7 +36,7 @@ We first build the binaries.
 Then we attach the xdp_dump code to eth0 interface on the server.
 ![Alt text](https://dummyim.s3.amazonaws.com/img13.png) 
 
-Finally we open another terminal on our host and ping the address(95.217.22.143) of the xdp attached interface. We can see the source, destination ports and ips on the left terminal being stored in eBPF map and getting retrieved from go userspace code. Here we are tracing only the ICMP requests.
+Finally we open another terminal on our host and ping the address(95.217.22.143) of the xdp attached interface. We can see the source, destination ports and ips on the left terminal being stored in eBPF map and getting retrieved from go userspace code. Here we are tracing only the ICMP requests. Inside the bpf code we can adjust to just capture our desirable type of packets.
 ![Alt text](https://dummyim.s3.amazonaws.com/img12.png) 
 
 
