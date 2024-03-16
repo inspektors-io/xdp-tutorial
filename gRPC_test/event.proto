@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package main;
+
+option go_package = "github.com/inspektors-io/grpc-nobin/generated_from_proto"; // Change this to your actual Go package path
+
+
+message UserRequest {
+  string source_ip = 1;
+  string destination_ip = 2;
+  int32 source_port = 3;
+  int32 destination_port = 4;
+}
+
+message UserResponse {
+  string message = 1;
+}
+
+service UserService {
+  rpc SendUserData(UserRequest) returns (UserResponse);
+}
