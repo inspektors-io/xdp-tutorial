@@ -15,6 +15,7 @@ if [ "$BUILD" = "$1" ]; then
 
 elif [ "$CLEAN" = "$1" ]; then
 	ip netns del node1
+	ip link delete veth0
 
 
 else

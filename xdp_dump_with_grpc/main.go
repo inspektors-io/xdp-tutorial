@@ -39,10 +39,33 @@ type Collect struct {
 }
 
 type perfEventItem struct {
-	SrcIp   uint32
-	DstIp   uint32
-	SrcPort uint16
-	DstPort uint16
+	EthHdr struct {
+		DestMAC   [6]uint8
+		SourceMAC [6]uint8
+		Proto     uint16
+	}
+	IpHdr struct {
+		VersionIHL  byte
+		TOS         byte
+		TotalLen    uint16
+		ID          uint16
+		FragmentOff uint16
+		TTL         uint8
+		Protocol    uint8
+		Checksum    uint16
+		SrcIP       uint32
+		DstIP       uint32
+	}
+	Tcphdr struct {
+		Source uint16
+		Dest   uint16
+		Seq    uint32
+		AckSeq uint32
+		Flags  uint16 // For holding the flags field (4 bytes)
+		Window uint16
+		Check  uint16
+		UrgPtr uint16
+	}
 }
 
 func main() {
@@ -130,22 +153,60 @@ func main() {
 				continue
 			}
 
-			fmt.Printf("TCP: %v:%d -> %v:%d\n",
-				intToIPv4(event.SrcIp), ntohs(event.SrcPort),
-				intToIPv4(event.DstIp), ntohs(event.DstPort),
-			)
+			// fmt.Printf("Ethernet Header:\n")
+			// fmt.Printf("  Destination MAC: %02x:%02x:%02x:%02x:%02x:%02x\n", event.EthHdr.DestMAC[0], event.EthHdr.DestMAC[1], event.EthHdr.DestMAC[2], event.EthHdr.DestMAC[3], event.EthHdr.DestMAC[4], event.EthHdr.DestMAC[5])
+			// fmt.Printf("  Source MAC: %02x:%02x:%02x:%02x:%02x:%02x\n", event.EthHdr.SourceMAC[0], event.EthHdr.SourceMAC[1], event.EthHdr.SourceMAC[2], event.EthHdr.SourceMAC[3], event.EthHdr.SourceMAC[4], event.EthHdr.SourceMAC[5])
+			// fmt.Printf("  Protocol: %x\n", event.EthHdr.Proto)
+
+			// fmt.Printf("IP Header:\n")
+			// fmt.Printf("  Version IHL: %x\n", event.IpHdr.VersionIHL)
+			// fmt.Printf("  TOS: %x\n", event.IpHdr.TOS)
+			// fmt.Printf("  Total Length: %d\n", event.IpHdr.TotalLen)
+			// fmt.Printf("  ID: %d\n", event.IpHdr.ID)
+			// fmt.Printf("  Fragment Offset: %d\n", event.IpHdr.FragmentOff)
+			// fmt.Printf("  TTL: %d\n", event.IpHdr.TTL)
+			// fmt.Printf("  Protocol: %d\n", event.IpHdr.Protocol)
+			// fmt.Printf("  Checksum: %d\n", event.IpHdr.Checksum)
+			// fmt.Printf("  Source IP: %s\n", intToIPv4(event.IpHdr.SrcIP).String())
+			// fmt.Printf("  Destination IP: %s\n", intToIPv4(event.IpHdr.DstIP).String())
+
+			fmt.Printf("TCP Header:\n")
+			// fmt.Printf("  Source Port: %d\n", ntohs(event.Tcphdr.Source))
+			// fmt.Printf("  Destination Port: %d\n", ntohs(event.Tcphdr.Dest))
+
+			// Extracting flags
+			flags := extractFlags(event.Tcphdr.Flags)
+			fmt.Println("Extracted Flags:")
+			fmt.Println("NS:", flags["ns"])
+			fmt.Println("RES:", flags["res"])
+			fmt.Println("DOFF:", flags["doff"])
+			fmt.Println("FIN:", flags["fin"])
+			fmt.Println("SYN:", flags["syn"])
+			fmt.Println("RST:", flags["rst"])
+			fmt.Println("PSH:", flags["psh"])
+			fmt.Println("ACK:", flags["ack"])
+			fmt.Println("URG:", flags["urg"])
+			fmt.Println("ECE:", flags["ece"])
+			fmt.Println("CWR:", flags["cwr"])
+			fmt.Printf("  Window: %d\n", event.Tcphdr.Window)
+			fmt.Printf("  Checksum: %d\n", event.Tcphdr.Check)
+			fmt.Printf("  Urgent Pointer: %d\n", event.Tcphdr.UrgPtr)
+
 			counter++
 			fmt.Printf("Counter: %d\n", counter)
 
+			rawData := evnt.RawSample[METADATA_SIZE:]
+
 			if len(evnt.RawSample)-METADATA_SIZE > 0 {
 				fmt.Println(hex.Dump(evnt.RawSample[METADATA_SIZE:]))
+				rawData = evnt.RawSample[METADATA_SIZE:]
 			}
 
 			received += len(evnt.RawSample)
 			lost += int(evnt.LostSamples)
 
 			// Send data to gRPC server
-			err = sendDataToServer(client, event, int32(counter))
+			err = sendDataToServer(client, int32(counter), event, rawData)
 			if err != nil {
 				fmt.Printf("Failed to send data to gRPC server: %v\n", err)
 				continue
@@ -155,6 +216,7 @@ func main() {
 		}
 	}()
 
+	defer conn.Close()
 	<-ctrlC
 	perfEvent.Close()
 
@@ -164,14 +226,47 @@ func main() {
 	fmt.Println("\nDetaching program and exiting...")
 }
 
-func sendDataToServer(client pb.UserServiceClient, event perfEventItem, packetNumber int32) error {
+func sendDataToServer(client pb.UserServiceClient, packetNumber int32, event perfEventItem, rawDumpString []byte) error {
+	// Create gRPC message types for TCP, IP, and Ethernet headers
+	ipHeader := &pb.IpHeader{
+		SourceIp:      event.IpHdr.SrcIP,
+		DestinationIp: event.IpHdr.DstIP,
+		VersionIhl:    uint32(event.IpHdr.VersionIHL),
+		Protocol:      uint32(event.IpHdr.Protocol),
+		Check:         uint32(event.IpHdr.Checksum),
+		// Ihl:           uint32(event.IPHeader.IHL),
+		FragOff: uint32(event.IpHdr.FragmentOff),
+		Id:      uint32(event.IpHdr.ID),
+		Tos:     uint32(event.IpHdr.TOS),
+		Ttl:     uint32(event.IpHdr.TTL),
+		TotLen:  uint32(event.IpHdr.TotalLen),
+	}
+	tcpHeader := &pb.TcpHeader{
+		SourcePort:      uint32(event.Tcphdr.Source),
+		DestinationPort: uint32(event.Tcphdr.Dest),
+		Seq:             uint32(event.Tcphdr.Seq),
+		AckSeq:          uint32(event.Tcphdr.AckSeq),
+		Flag:            uint32(event.Tcphdr.Flags),
+		Window:          uint32(event.Tcphdr.Window),
+		Check:           uint32(event.Tcphdr.Check),
+		UrgPtr:          uint32(event.Tcphdr.UrgPtr),
+	}
+	ethernetHeader := &pb.EthernetHeader{
+		EtherType:      uint32(event.EthHdr.Proto),
+		DestinationMac: event.EthHdr.DestMAC[:],
+		SourceMac:      event.EthHdr.SourceMAC[:],
+	}
+
+	// Convert raw binary data to hexadecimal string
+	// rawDumpHex := hex.EncodeToString([]byte(rawDumpString))
+
 	// Send data to server
 	_, err := client.SendUserData(context.Background(), &pb.UserRequest{
-		SourceIp:        intToIPv4(event.SrcIp).String(),
-		DestinationIp:   intToIPv4(event.DstIp).String(),
-		SourcePort:      int32(event.SrcPort),
-		DestinationPort: int32(event.DstPort),
-		PacketNumber:    packetNumber, // Include packet number
+		IpHeader:       ipHeader,
+		TcpHeader:      tcpHeader,
+		EthernetHeader: ethernetHeader,
+		PacketNumber:   packetNumber,
+		RawData:        rawDumpString, // Send hexadecimal string instead of raw binary
 	})
 	return err
 }
@@ -184,4 +279,20 @@ func intToIPv4(ip uint32) net.IP {
 
 func ntohs(value uint16) uint16 {
 	return ((value & 0xff) << 8) | (value >> 8)
+}
+
+func extractFlags(flags uint16) map[string]uint16 {
+	result := make(map[string]uint16)
+	result["cwr"] = (flags >> 15) & 0x1
+	result["ece"] = (flags >> 14) & 0x1
+	result["urg"] = (flags >> 13) & 0x1
+	result["ack"] = (flags >> 12) & 0x1
+	result["psh"] = (flags >> 11) & 0x1
+	result["rst"] = (flags >> 10) & 0x1
+	result["syn"] = (flags >> 9) & 0x1
+	result["fin"] = (flags >> 8) & 0x1
+	result["doff"] = (flags >> 4) & 0xF
+	result["res"] = (flags >> 1) & 0x7
+	result["ns"] = flags & 0x1
+	return result
 }
