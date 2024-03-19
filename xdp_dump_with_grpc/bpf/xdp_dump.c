@@ -27,6 +27,35 @@ struct iphdr {
   __u32 daddr;
 } __attribute__((packed));
 
+// TCP header
+struct tcphdr {
+  __u16 source;
+  __u16 dest;
+  __u32 seq;
+  __u32 ack_seq;
+  union {
+    struct {
+      // Field order has been converted LittleEndiand -> BigEndian
+      // in order to simplify flag checking (no need to ntohs())
+      __u16 ns : 1,
+      reserved : 3,
+      doff : 4,
+      fin : 1,
+      syn : 1,
+      rst : 1,
+      psh : 1,
+      ack : 1,
+      urg : 1,
+      ece : 1,
+      cwr : 1;
+    };
+  };
+  __u16 window;
+  __u16 check;
+  __u16 urg_ptr;
+};
+__attribute__((packed));
+
 // PerfEvent eBPF map
 BPF_MAP_DEF(perfmap) = {
     .map_type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
@@ -34,14 +63,21 @@ BPF_MAP_DEF(perfmap) = {
 };
 BPF_MAP_ADD(perfmap);
 
-
 // PerfEvent item
 struct perf_event_item {
-  __u32 src_ip, dst_ip;
-};
-_Static_assert(sizeof(struct perf_event_item) == 8, "wrong size of perf_event_item");
+    struct ethhdr eth_hdr;
+    struct iphdr ip_hdr;
+    // __u16 source;
+    // __u16 dest;
+    // __u32 seq;
+    // __u32 ack_seq; 
+    struct tcphdr tcp_hdr;
+} __attribute__((packed));
 
-// XDP program //
+_Static_assert(sizeof(struct perf_event_item) == 54, "wrong size of perf_event_item");
+
+
+// XDP program
 SEC("xdp")
 int xdp_dump(struct xdp_md *ctx) {
   void *data_end = (void *)(long)ctx->data_end;
@@ -65,12 +101,26 @@ int xdp_dump(struct xdp_md *ctx) {
     return XDP_ABORTED;
   }
 
-  // Emit perf event for every IP packet
-  if (ip->protocol) {
+  data += ip->ihl * 4;
+  struct tcphdr *tcp = data;
+  if (data + sizeof(*tcp) > data_end) {
+    return XDP_ABORTED;
+  }
+
+  // Emit perf event for every ICMP packet
+  if (ip->protocol) {  // IPPROTO_TCP -> 6
     struct perf_event_item evt = {
-      .src_ip = ip->saddr,
-      .dst_ip = ip->daddr,
+      .eth_hdr = *ether,
+      .ip_hdr = *ip,
+      .tcp_hdr = *tcp,
+      // .src_ip = ip->saddr,
+      // .dst_ip = ip->daddr,
+      // .source = tcp->source,
+      // .dest = tcp->dest,
+      // .seq = tcp->seq,
+      // .ack_seq = tcp->ack_seq,
     };
+
     // flags for bpf_perf_event_output() actually contain 2 parts (each 32bit long):
     //
     // bits 0-31: either
