@@ -170,29 +170,27 @@ func main() {
 			// fmt.Printf("  Source IP: %s\n", intToIPv4(event.IpHdr.SrcIP).String())
 			// fmt.Printf("  Destination IP: %s\n", intToIPv4(event.IpHdr.DstIP).String())
 
-			// fmt.Printf("TCP Header:\n")
+			fmt.Printf("TCP Header:\n")
 			// fmt.Printf("  Source Port: %d\n", ntohs(event.Tcphdr.Source))
 			// fmt.Printf("  Destination Port: %d\n", ntohs(event.Tcphdr.Dest))
-			// fmt.Printf("  Sequence Number: %d\n", event.Tcphdr.Seq)
-			// fmt.Printf("  Acknowledgment Number: %d\n", event.Tcphdr.AckSeq)
 
-			// // Extracting flags
-			// flags := extractFlags(event.Tcphdr.Flags)
-			// fmt.Println("Extracted Flags:")
-			// fmt.Println("NS:", flags["ns"])
-			// fmt.Println("RES:", flags["res"])
-			// fmt.Println("DOFF:", flags["doff"])
-			// fmt.Println("FIN:", flags["fin"])
-			// fmt.Println("SYN:", flags["syn"])
-			// fmt.Println("RST:", flags["rst"])
-			// fmt.Println("PSH:", flags["psh"])
-			// fmt.Println("ACK:", flags["ack"])
-			// fmt.Println("URG:", flags["urg"])
-			// fmt.Println("ECE:", flags["ece"])
-			// fmt.Println("CWR:", flags["cwr"])
-			// fmt.Printf("  Window: %d\n", event.Tcphdr.Window)
-			// fmt.Printf("  Checksum: %d\n", event.Tcphdr.Check)
-			// fmt.Printf("  Urgent Pointer: %d\n", event.Tcphdr.UrgPtr)
+			// Extracting flags
+			flags := extractFlags(event.Tcphdr.Flags)
+			fmt.Println("Extracted Flags:")
+			fmt.Println("NS:", flags["ns"])
+			fmt.Println("RES:", flags["res"])
+			fmt.Println("DOFF:", flags["doff"])
+			fmt.Println("FIN:", flags["fin"])
+			fmt.Println("SYN:", flags["syn"])
+			fmt.Println("RST:", flags["rst"])
+			fmt.Println("PSH:", flags["psh"])
+			fmt.Println("ACK:", flags["ack"])
+			fmt.Println("URG:", flags["urg"])
+			fmt.Println("ECE:", flags["ece"])
+			fmt.Println("CWR:", flags["cwr"])
+			fmt.Printf("  Window: %d\n", event.Tcphdr.Window)
+			fmt.Printf("  Checksum: %d\n", event.Tcphdr.Check)
+			fmt.Printf("  Urgent Pointer: %d\n", event.Tcphdr.UrgPtr)
 
 			counter++
 			fmt.Printf("Counter: %d\n", counter)
@@ -208,7 +206,7 @@ func main() {
 			lost += int(evnt.LostSamples)
 
 			// Send data to gRPC server
-			err = sendDataToServer(client, int32(counter), event, string(rawData))
+			err = sendDataToServer(client, int32(counter), event, rawData)
 			if err != nil {
 				fmt.Printf("Failed to send data to gRPC server: %v\n", err)
 				continue
@@ -228,14 +226,14 @@ func main() {
 	fmt.Println("\nDetaching program and exiting...")
 }
 
-func sendDataToServer(client pb.UserServiceClient, packetNumber int32, event perfEventItem, rawDumpString string) error {
+func sendDataToServer(client pb.UserServiceClient, packetNumber int32, event perfEventItem, rawDumpString []byte) error {
 	// Create gRPC message types for TCP, IP, and Ethernet headers
 	ipHeader := &pb.IpHeader{
 		SourceIp:      event.IpHdr.SrcIP,
 		DestinationIp: event.IpHdr.DstIP,
-		// Version:       uint32(event.IPHeader.Version),
-		Protocol: uint32(event.IpHdr.Protocol),
-		Check:    uint32(event.IpHdr.Checksum),
+		VersionIhl:    uint32(event.IpHdr.VersionIHL),
+		Protocol:      uint32(event.IpHdr.Protocol),
+		Check:         uint32(event.IpHdr.Checksum),
 		// Ihl:           uint32(event.IPHeader.IHL),
 		FragOff: uint32(event.IpHdr.FragmentOff),
 		Id:      uint32(event.IpHdr.ID),
@@ -246,9 +244,10 @@ func sendDataToServer(client pb.UserServiceClient, packetNumber int32, event per
 	tcpHeader := &pb.TcpHeader{
 		SourcePort:      uint32(event.Tcphdr.Source),
 		DestinationPort: uint32(event.Tcphdr.Dest),
-		Seq:             event.Tcphdr.Seq,
-		AckSeq:          event.Tcphdr.AckSeq,
+		Seq:             uint32(event.Tcphdr.Seq),
+		AckSeq:          uint32(event.Tcphdr.AckSeq),
 		Flag:            uint32(event.Tcphdr.Flags),
+		Window:          uint32(event.Tcphdr.Window),
 		Check:           uint32(event.Tcphdr.Check),
 		UrgPtr:          uint32(event.Tcphdr.UrgPtr),
 	}
@@ -259,7 +258,7 @@ func sendDataToServer(client pb.UserServiceClient, packetNumber int32, event per
 	}
 
 	// Convert raw binary data to hexadecimal string
-	rawDumpHex := hex.EncodeToString([]byte(rawDumpString))
+	// rawDumpHex := hex.EncodeToString([]byte(rawDumpString))
 
 	// Send data to server
 	_, err := client.SendUserData(context.Background(), &pb.UserRequest{
@@ -267,7 +266,7 @@ func sendDataToServer(client pb.UserServiceClient, packetNumber int32, event per
 		TcpHeader:      tcpHeader,
 		EthernetHeader: ethernetHeader,
 		PacketNumber:   packetNumber,
-		RawData:        rawDumpHex, // Send hexadecimal string instead of raw binary
+		RawData:        rawDumpString, // Send hexadecimal string instead of raw binary
 	})
 	return err
 }

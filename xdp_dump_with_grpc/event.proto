@@ -13,15 +13,14 @@ message EthernetHeader {
 message IpHeader {
   uint32 source_ip = 1;
   uint32 destination_ip = 2;
-  uint32 version = 3;
-  uint32 ihl = 4;
-  uint32 tos = 5;
-  uint32 tot_len = 6;
-  uint32 id = 7;
-  uint32 frag_off = 8;
-  uint32 ttl = 9;
-  uint32 protocol = 10;
-  uint32 check = 11;
+  uint32 version_ihl = 3;
+  uint32 tos = 4;
+  uint32 tot_len = 5;
+  uint32 id = 6;
+  uint32 frag_off = 7;
+  uint32 ttl = 8;
+  uint32 protocol = 9;
+  uint32 check = 10;
 }
 
 message TcpHeader {
@@ -40,7 +39,7 @@ message UserRequest {
   TcpHeader tcp_header = 2;
   EthernetHeader ethernet_header = 3;
   int32 packet_number = 4;
-  string raw_data = 5;
+  bytes raw_data = 5;
 }
 
 message UserResponse {
